@@ -17,33 +17,260 @@
  *
  */
 
-#include "nr-sl-ue-mac-scheduler-simple.h"
+#include "nr-sl-ue-mac-scheduler-default.h"
 
 #include <ns3/log.h>
-#include <algorithm>
+#include <ns3/boolean.h>
+#include <ns3/uinteger.h>
+#include <ns3/pointer.h>
+
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("NrSlUeMacSchedulerSimple");
-NS_OBJECT_ENSURE_REGISTERED (NrSlUeMacSchedulerSimple);
-
-NrSlUeMacSchedulerSimple::NrSlUeMacSchedulerSimple ()
-{
-}
+NS_LOG_COMPONENT_DEFINE ("NrSlUeMacSchedulerDefault");
+NS_OBJECT_ENSURE_REGISTERED (NrSlUeMacSchedulerDefault);
 
 TypeId
-NrSlUeMacSchedulerSimple::GetTypeId (void)
+NrSlUeMacSchedulerDefault::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::NrSlUeMacSchedulerSimple")
-    .SetParent<NrSlUeMacSchedulerNs3> ()
-    .AddConstructor<NrSlUeMacSchedulerSimple> ()
+  static TypeId tid = TypeId ("ns3::NrSlUeMacSchedulerDefault")
+    .SetParent<NrSlUeMacScheduler> ()
+    .AddConstructor<NrSlUeMacSchedulerDefault> ()
     .SetGroupName ("nr")
+    .AddAttribute ("FixNrSlMcs",
+                   "Fix MCS to value set in SetInitialNrSlMcs",
+                   BooleanValue (false),
+                   MakeBooleanAccessor (&NrSlUeMacSchedulerDefault::UseFixedNrSlMcs,
+                                        &NrSlUeMacSchedulerDefault::IsNrSlMcsFixed),
+                   MakeBooleanChecker ())
+    .AddAttribute ("InitialNrSlMcs",
+                   "The initial value of the MCS used for NR Sidelink",
+                   UintegerValue (14),
+                   MakeUintegerAccessor (&NrSlUeMacSchedulerDefault::SetInitialNrSlMcs,
+                                         &NrSlUeMacSchedulerDefault::GetInitialNrSlMcs),
+                   MakeUintegerChecker<uint8_t> ())
+    .AddAttribute ("NrSlAmc",
+                   "The NR SL AMC of this scheduler",
+                   PointerValue (),
+                   MakePointerAccessor (&NrSlUeMacSchedulerDefault::m_nrSlAmc),
+                   MakePointerChecker <NrAmc> ())
   ;
   return tid;
 }
 
+NrSlUeMacSchedulerDefault::NrSlUeMacSchedulerDefault ()
+{
+  m_uniformVariable = CreateObject<UniformRandomVariable> ();
+}
+
+NrSlUeMacSchedulerDefault::~NrSlUeMacSchedulerDefault ()
+{
+  //just to make sure
+  m_dstMap.clear ();
+}
+
+void
+NrSlUeMacSchedulerDefault::DoCschedUeNrSlLcConfigReq (const NrSlUeMacCschedSapProvider::SidelinkLogicalChannelInfo& params)
+{
+  NS_LOG_FUNCTION (this << params.dstL2Id << +params.lcId);
+
+  auto dstInfo = CreateDstInfo (params);
+  const auto & lcgMap = dstInfo->GetNrSlLCG (); //Map of unique_ptr should not copy
+  auto itLcg = lcgMap.find (params.lcGroup);
+  auto itLcgEnd = lcgMap.end ();
+  if (itLcg == itLcgEnd)
+    {
+      NS_LOG_DEBUG ("Created new NR SL LCG for destination " << dstInfo->GetDstL2Id () <<
+                    " LCG ID =" << static_cast<uint32_t> (params.lcGroup));
+      itLcg = dstInfo->Insert (CreateLCG (params.lcGroup));
+    }
+
+  itLcg->second->Insert (CreateLC (params));
+  NS_LOG_INFO ("Added LC id " << +params.lcId << " in LCG " << +params.lcGroup);
+  //send confirmation to UE MAC
+  m_nrSlUeMacCschedSapUser->CschedUeNrSlLcConfigCnf (params.lcGroup, params.lcId);
+}
+
+std::shared_ptr<NrSlUeMacSchedulerDstInfo>
+NrSlUeMacSchedulerDefault::CreateDstInfo (const NrSlUeMacCschedSapProvider::SidelinkLogicalChannelInfo& params)
+{
+  std::shared_ptr<NrSlUeMacSchedulerDstInfo> dstInfo = nullptr;
+  auto itDst = m_dstMap.find (params.dstL2Id);
+  if (itDst == m_dstMap.end ())
+    {
+      NS_LOG_INFO ("Creating destination info. Destination L2 id " << params.dstL2Id);
+
+      dstInfo = std::make_shared <NrSlUeMacSchedulerDstInfo> (params.dstL2Id);
+      dstInfo->SetDstMcs (m_initialNrSlMcs);
+
+      itDst = m_dstMap.insert (std::make_pair (params.dstL2Id, dstInfo)).first;
+    }
+  else
+    {
+      NS_LOG_LOGIC ("Doing nothing. You are seeing this because we are adding new LC " << +params.lcId << " for Dst " << params.dstL2Id);
+      dstInfo = itDst->second;
+    }
+
+  return dstInfo;
+}
+
+
+NrSlLCGPtr
+NrSlUeMacSchedulerDefault::CreateLCG (uint8_t lcGroup) const
+{
+  NS_LOG_FUNCTION (this);
+  return std::unique_ptr<NrSlUeMacSchedulerLCG> (new NrSlUeMacSchedulerLCG (lcGroup));
+}
+
+
+NrSlLCPtr
+NrSlUeMacSchedulerDefault::CreateLC (const NrSlUeMacCschedSapProvider::SidelinkLogicalChannelInfo& params) const
+{
+  NS_LOG_FUNCTION (this);
+  return std::unique_ptr<NrSlUeMacSchedulerLC> (new NrSlUeMacSchedulerLC (params));
+}
+
+
+void
+NrSlUeMacSchedulerDefault::DoSchedUeNrSlRlcBufferReq (const struct NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams& params)
+{
+  NS_LOG_FUNCTION (this << params.dstL2Id <<
+                   static_cast<uint32_t> (params.lcid));
+
+  GetSecond DstInfoOf;
+  auto itDst = m_dstMap.find (params.dstL2Id);
+  NS_ABORT_MSG_IF (itDst == m_dstMap.end (), "Destination " << params.dstL2Id << " info not found");
+
+  for (const auto &lcg : DstInfoOf (*itDst)->GetNrSlLCG ())
+    {
+      if (lcg.second->Contains (params.lcid))
+        {
+          NS_LOG_INFO ("Updating NR SL LC Info: " << params <<
+                       " in LCG: " << static_cast<uint32_t> (lcg.first));
+          lcg.second->UpdateInfo (params);
+          return;
+        }
+    }
+  // Fail miserably because we didn't find any LC
+  NS_FATAL_ERROR ("The LC does not exist. Can't update");
+}
+
+void
+NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params)
+{
+  NS_LOG_FUNCTION (this << dstL2Id);
+
+  const auto itDst = m_dstMap.find (dstL2Id);
+  NS_ABORT_MSG_IF (itDst == m_dstMap.end (), "Destination " << dstL2Id << "info not found");
+
+  std::set<NrSlSlotAlloc> allocList;
+
+  bool allocated = DoNrSlAllocation (params, itDst->second, allocList);
+
+  if (!allocated)
+    {
+      return;
+    }
+  m_nrSlUeMacSchedSapUser->SchedUeNrSlConfigInd (allocList);
+}
+
+
+uint8_t
+NrSlUeMacSchedulerDefault::GetTotalSubCh () const
+{
+  return m_nrSlUeMacSchedSapUser->GetTotalSubCh ();
+}
+
+uint8_t
+NrSlUeMacSchedulerDefault::GetSlMaxTxTransNumPssch () const
+{
+  return m_nrSlUeMacSchedSapUser->GetSlMaxTxTransNumPssch ();
+}
+
+
+void
+NrSlUeMacSchedulerDefault::InstallNrSlAmc (const Ptr<NrAmc> &nrSlAmc)
+{
+  NS_LOG_FUNCTION (this);
+  m_nrSlAmc = nrSlAmc;
+  //In NR it does not have any impact
+  m_nrSlAmc->SetUlMode ();
+}
+
+Ptr<const NrAmc>
+NrSlUeMacSchedulerDefault::GetNrSlAmc () const
+{
+  NS_LOG_FUNCTION (this);
+  return m_nrSlAmc;
+}
+
+void
+NrSlUeMacSchedulerDefault::UseFixedNrSlMcs (bool fixMcs)
+{
+  NS_LOG_FUNCTION (this);
+  m_fixedNrSlMcs = fixMcs;
+}
+
 bool
-NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& txOpps,
+NrSlUeMacSchedulerDefault::IsNrSlMcsFixed () const
+{
+  NS_LOG_FUNCTION (this);
+  return m_fixedNrSlMcs;
+}
+
+void
+NrSlUeMacSchedulerDefault::SetInitialNrSlMcs (uint8_t mcs)
+{
+  NS_LOG_FUNCTION (this);
+  m_initialNrSlMcs = mcs;
+}
+
+uint8_t
+NrSlUeMacSchedulerDefault::GetInitialNrSlMcs () const
+{
+  NS_LOG_FUNCTION (this);
+  return m_initialNrSlMcs;
+}
+
+uint8_t
+NrSlUeMacSchedulerDefault::GetRv (uint8_t txNumTb) const
+{
+  NS_LOG_FUNCTION (this << +txNumTb);
+  uint8_t modulo  = txNumTb % 4;
+  //we assume rvid = 0, so RV would take 0, 2, 3, 1
+  //see TS 38.21 table 6.1.2.1-2
+  uint8_t rv = 0;
+  switch (modulo)
+  {
+    case 0:
+      rv = 0;
+      break;
+    case 1:
+      rv = 2;
+      break;
+    case 2:
+      rv = 3;
+      break;
+    case 3:
+      rv = 1;
+      break;
+    default:
+      NS_ABORT_MSG ("Wrong modulo result to deduce RV");
+  }
+
+  return rv;
+}
+
+int64_t
+NrSlUeMacSchedulerDefault::AssignStreams (int64_t stream)
+{
+  NS_LOG_FUNCTION (this << stream);
+  m_uniformVariable->SetStream (stream );
+  return 1;
+}
+
+bool
+NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& txOpps,
                                             const std::shared_ptr<NrSlUeMacSchedulerDstInfo> &dstInfo,
                                             std::set<NrSlSlotAlloc> &slotAllocList)
 {
@@ -52,10 +279,10 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
   NS_ASSERT_MSG (txOpps.size () > 0, "Scheduler received an empty txOpps list from UE MAC");
   const auto & lcgMap = dstInfo->GetNrSlLCG (); //Map of unique_ptr should not copy
 
-  NS_ASSERT_MSG (lcgMap.size () == 1, "NrSlUeMacSchedulerSimple can handle only one LCG");
+  NS_ASSERT_MSG (lcgMap.size () == 1, "NrSlUeMacSchedulerDefault can handle only one LCG");
 
   std::vector<uint8_t> lcVector = lcgMap.begin ()->second->GetLCId ();
-  NS_ASSERT_MSG (lcVector.size () == 1, "NrSlUeMacSchedulerSimple can handle only one LC");
+  NS_ASSERT_MSG (lcVector.size () == 1, "NrSlUeMacSchedulerDefault can handle only one LC");
 
   uint32_t bufferSize = lcgMap.begin ()->second->GetTotalSizeOfLC (lcVector.at (0));
 
@@ -64,7 +291,7 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
       return allocated;
     }
 
-  NS_ASSERT_MSG (IsNrSlMcsFixed (), "Attribute FixNrSlMcs must be true for NrSlUeMacSchedulerSimple scheduler");
+  NS_ASSERT_MSG (IsNrSlMcsFixed (), "Attribute FixNrSlMcs must be true for NrSlUeMacSchedulerDefault scheduler");
 
 
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> selectedTxOpps;
@@ -148,7 +375,7 @@ NrSlUeMacSchedulerSimple::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapPr
 
 
 std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
-NrSlUeMacSchedulerSimple::RandomlySelectSlots (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
+NrSlUeMacSchedulerDefault::RandomlySelectSlots (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
 {
   NS_LOG_FUNCTION (this);
 
@@ -178,8 +405,8 @@ NrSlUeMacSchedulerSimple::RandomlySelectSlots (std::list <NrSlUeMacSchedSapProvi
   return newTxOpps;
 }
 
-NrSlUeMacSchedulerSimple::SbChInfo
-NrSlUeMacSchedulerSimple::GetAvailSbChInfo (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
+NrSlUeMacSchedulerDefault::SbChInfo
+NrSlUeMacSchedulerDefault::GetAvailSbChInfo (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOpps)
 {
   NS_LOG_FUNCTION (this << txOpps.size ());
   //txOpps are the randomly selected slots for 1st Tx and possible ReTx
@@ -248,7 +475,7 @@ NrSlUeMacSchedulerSimple::GetAvailSbChInfo (std::list <NrSlUeMacSchedSapProvider
 }
 
 std::vector <uint8_t>
-NrSlUeMacSchedulerSimple::RandSelSbChStart (SbChInfo sbChInfo, uint8_t assignedSbCh)
+NrSlUeMacSchedulerDefault::RandSelSbChStart (SbChInfo sbChInfo, uint8_t assignedSbCh)
 {
   NS_LOG_FUNCTION (this << +sbChInfo.numSubCh << sbChInfo.availSbChIndPerSlot.size () << +assignedSbCh);
 
@@ -296,6 +523,7 @@ NrSlUeMacSchedulerSimple::RandSelSbChStart (SbChInfo sbChInfo, uint8_t assignedS
 
   return subChInStartPerSlot;
 }
+
 
 
 } //namespace ns3

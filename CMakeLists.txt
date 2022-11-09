@@ -107,8 +107,7 @@ set(source_files
     model/nr-sl-ue-mac-scheduler.cc
     model/nr-sl-ue-mac-scheduler-dst-info.cc
     model/nr-sl-ue-mac-scheduler-lcg.cc
-    model/nr-sl-ue-mac-scheduler-ns3.cc
-    model/nr-sl-ue-mac-scheduler-simple.cc
+    model/nr-sl-ue-mac-scheduler-default.cc
     model/nr-sl-ue-phy-sap.cc
     utils/file-transfer-helper.cc
     utils/file-transfer-application.cc
@@ -231,8 +230,7 @@ set(header_files
     model/nr-sl-ue-mac-scheduler-dst-info.h
     model/nr-sl-ue-mac-scheduler.h
     model/nr-sl-ue-mac-scheduler-lcg.h
-    model/nr-sl-ue-mac-scheduler-ns3.h
-    model/nr-sl-ue-mac-scheduler-simple.h
+    model/nr-sl-ue-mac-scheduler-default.h
     model/nr-sl-ue-phy-sap.h
     utils/file-transfer-helper.h
     utils/file-transfer-application.h
