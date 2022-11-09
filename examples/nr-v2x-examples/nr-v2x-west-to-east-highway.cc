@@ -1002,6 +1002,9 @@ main (int argc, char *argv[])
   Address localAddress;
   uint16_t port = 8000;
   Ptr<LteSlTft> tft;
+  SidelinkInfo slInfo;
+  slInfo.m_castType = SidelinkInfo::CastType::Groupcast;
+  slInfo.m_dstL2Id = dstL2Id;
   if (!useIPv6)
     {
       Ipv4InterfaceContainer ueIpIface;
@@ -1019,11 +1022,11 @@ main (int argc, char *argv[])
       remoteAddress = InetSocketAddress (groupAddress4, port);
       localAddress = InetSocketAddress (Ipv4Address::GetAny (), port);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, groupAddress4, slInfo);
       //Set Sidelink bearers
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, txSlUesNetDevice, tft);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, groupAddress4, slInfo);
       //Set Sidelink bearers
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, rxSlUesNetDevice, tft);
     }
@@ -1044,11 +1047,11 @@ main (int argc, char *argv[])
       remoteAddress = Inet6SocketAddress (groupAddress6, port);
       localAddress = Inet6SocketAddress (Ipv6Address::GetAny (), port);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::TRANSMIT, groupAddress6, slInfo);
       //Set Sidelink bearers for transmitting UEs
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, txSlUesNetDevice, tft);
 
-      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, LteSlTft::CommType::GroupCast, groupAddress4, dstL2Id);
+      tft = Create<LteSlTft> (LteSlTft::Direction::RECEIVE, groupAddress6, slInfo);
       //Set Sidelink bearers for receiving UEs
       nrSlHelper->ActivateNrSlBearer (slBearersActivationTime, rxSlUesNetDevice, tft);
     }

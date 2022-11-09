@@ -127,7 +127,7 @@ NrSlHelper::DoActivateNrSlBearer (NetDeviceContainer ues, const Ptr<LteSlTft> tf
   NS_LOG_FUNCTION (this);
   for (NetDeviceContainer::Iterator i = ues.Begin (); i != ues.End (); ++i)
     {
-      NS_LOG_DEBUG ("Activating SL bearer at " << Simulator::Now () << " destination L2 id " << tft->GetDstL2Id ());
+      NS_LOG_DEBUG ("Activating SL bearer at " << Simulator::Now () << " destination L2 id " << tft->GetSidelinkInfo ().m_dstL2Id);
       m_epcHelper->ActivateNrSlBearerForUe (*i, Create<LteSlTft> (tft)) ;
     }
 }
