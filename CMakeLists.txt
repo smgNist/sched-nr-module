@@ -102,6 +102,7 @@ set(source_files
     model/nr-sl-sci-f2a-header.cc
     model/nr-sl-sci-f2-header.cc
     model/nr-sl-ue-mac-harq.cc
+    model/nr-sl-ue-mac-csched-sap.cc
     model/nr-sl-ue-mac-sched-sap.cc
     model/nr-sl-ue-mac-scheduler.cc
     model/nr-sl-ue-mac-scheduler-dst-info.cc

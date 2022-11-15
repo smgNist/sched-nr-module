@@ -108,6 +108,13 @@ public:
 
 };
 
+/**
+ * \brief Stream output operator for SidelinkLogicalChannelInfo
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlUeMacCschedSapProvider::SidelinkLogicalChannelInfo const & p);
 
 } // namespace ns3
 
