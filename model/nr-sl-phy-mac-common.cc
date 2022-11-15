@@ -34,4 +34,25 @@ NrSlVarTtiAllocInfo::operator < (const NrSlVarTtiAllocInfo &rhs) const
   return (symStart < rhs.symStart);
 }
 
+std::ostream &operator<< (std::ostream &os, const NrSlSlotAlloc& p)
+{
+  os << "SfnSf: " << p.sfn
+     << " dstL2Id: " << p.dstL2Id
+     << " ndi: " << static_cast<uint16_t> (p.ndi)
+     << " rv: " << static_cast<uint16_t> (p.rv)
+     << " priority: " << static_cast<uint16_t> (p.priority)
+     << " mcs: " << p.mcs
+     << " numSlPscchRbs: " << p.numSlPscchRbs
+     << " slPscchSymStart: " << p.slPscchSymStart
+     << " slPscchSymLength: " << p.slPscchSymLength
+     << " slPsschSymStart: " << p.slPsschSymStart
+     << " slPsschSymLength: " << p.slPsschSymLength
+     << " slPsschSubChStart: " << p.slPsschSubChStart
+     << " slPsschSubChLength: " << p.slPsschSubChLength
+     << " maxNumPerReserve: " << p.maxNumPerReserve
+     << " txSci1A: " << p.txSci1A
+     << " slotNumInd: " << static_cast<uint16_t> (p.slotNumInd);
+  return os;
+}
+
 }

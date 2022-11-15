@@ -33,6 +33,33 @@ std::ostream &operator<< (std::ostream &os,
   return os;
 }
 
+std::ostream &operator<< (std::ostream &os,
+                          const NrSlUeMacSchedSapProvider::NrSlSlotInfo &p)
+{
+  os << "SfnSf: " << p.sfn
+     << " PscchRbs: " << p.numSlPscchRbs
+     << " PscchSymStart: " << p.slPscchSymStart
+     << " PscchSymLength: " << p.slPscchSymLength
+     << " PsschSymStart: " << p.slPsschSymStart
+     << " PsschSymLength: " << p.slPsschSymLength
+     << " SubchannelSize: " << p.slSubchannelSize
+     << " MaxNumPerReserve: " << p.slMaxNumPerReserve;
+  if (p.occupiedSbCh.size () > 0)
+    {
+      os << " OccupiedSbCh:";
+      for (auto i : p.occupiedSbCh)
+        { 
+          os << " " << static_cast<uint16_t> (i);
+        }
+    }
+  else
+    {
+      os << " OccupiedSbCh: None";
+    }
+  return os;
+}
+
+
 bool
 NrSlUeMacSchedSapProvider::NrSlSlotInfo::operator < (const NrSlSlotInfo &rhs) const
 {

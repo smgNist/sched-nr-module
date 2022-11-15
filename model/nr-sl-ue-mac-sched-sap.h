@@ -207,6 +207,13 @@ public:
  */
 std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams const & p);
 
+/**
+ * \brief Stream output operator
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapProvider::NrSlSlotInfo const & p);
 
 } // namespace ns3
 

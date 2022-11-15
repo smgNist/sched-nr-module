@@ -373,6 +373,14 @@ struct SlotSensingData
   double slRsrp {0.0}; //!< The measured RSRP value over the used resource blocks
 };
 
+/**
+ * \brief Stream output operator for NrSlSlotAlloc
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlSlotAlloc const & p);
+
 }
 
 #endif /* NR_SL_PHY_MAC_COMMON_H_ */
