@@ -19,6 +19,7 @@
 #define NR_SL_UE_MAC_CSCHED_SAP_PROVIDER_H
 
 #include "sfnsf.h"
+#include <ns3/lte-sl-tft.h>
 
 #include <iostream>
 #include <list>
@@ -54,10 +55,19 @@ public:
      * \param isGbr true if the bearer is GBR, false if the bearer is NON-GBR
      * \param mbr maximum bitrate
      * \param gbr guaranteed bitrate
+     * \param castType the Cast type
+     * \param harqEnabled whether HARQ is enabled
+     * \param pdb Packet Delay Budget
+     * \param dynamic flag for whether it is dynamic or SPS
+     * \param rri Resource Reservation Interval
      */
     SidelinkLogicalChannelInfo (uint32_t dstL2Id, uint8_t lcId, uint8_t lcGroup,
                                 uint8_t pqi, uint8_t priority, bool isGbr,
-                                uint64_t mbr, uint64_t gbr)
+                                uint64_t mbr, uint64_t gbr,
+                                SidelinkInfo::CastType castType,
+                                bool harqEnabled, Time pdb, bool dynamic,
+                                Time rri)
+
     {
       this->dstL2Id = dstL2Id;
       this->lcId = lcId;
@@ -67,6 +77,10 @@ public:
       this->isGbr = isGbr;
       this->mbr = mbr;
       this->gbr = gbr;
+      this->castType = castType;
+      this->harqEnabled = harqEnabled;
+      this->pdb = pdb;
+      this->dynamic = dynamic;
     }
     uint32_t dstL2Id {std::numeric_limits <uint32_t>::max ()}; //!< L2 destination id
     uint8_t  lcId {std::numeric_limits <uint8_t>::max ()};     //!< logical channel identifier
@@ -76,6 +90,11 @@ public:
     bool     isGbr {false};   //!< true if the bearer is GBR, false if the bearer is NON-GBR
     uint64_t mbr {0};   //!< maximum bitrate
     uint64_t gbr {0};   //!< guaranteed bitrate
+    SidelinkInfo::CastType castType {SidelinkInfo::CastType::Invalid}; //!< cast type
+    bool harqEnabled {false};  //!< Whether HARQ is enabled
+    Time pdb;   //!< Packet Delay Budget
+    bool dynamic {false};   //!< flag for whether it is dynamic or SPS
+    Time rri;  //!< Resource Reservation Interval
   };
 
   /**

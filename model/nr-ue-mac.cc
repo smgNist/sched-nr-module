@@ -2224,7 +2224,9 @@ NrUeMac::DoAddNrSlLc (const NrSlUeCmacSapProvider::SidelinkLogicalChannelInfo &s
   auto lcInfo = NrSlUeMacCschedSapProvider::SidelinkLogicalChannelInfo (slLcInfo.dstL2Id, slLcInfo.lcId,
                                                                         slLcInfo.lcGroup, slLcInfo.pqi,
                                                                         slLcInfo.priority, slLcInfo.isGbr,
-                                                                        slLcInfo.mbr, slLcInfo.gbr);
+                                                                        slLcInfo.mbr, slLcInfo.gbr, slLcInfo.castType,
+                                                                        slLcInfo.harqEnabled, slLcInfo.pdb,
+                                                                        slLcInfo.dynamic, slLcInfo.rri);
 
   //Following if is needed because this method is called for both
   //TX and RX LCs addition into m_nrSlLcInfoMap. In case of RX LC, the
