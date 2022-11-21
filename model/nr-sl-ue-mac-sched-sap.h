@@ -172,6 +172,18 @@ public:
    */
   virtual ~NrSlUeMacSchedSapUser () = default;
 
+  ///NR Sidelink grant Information
+  struct NrSlGrantInfo
+  {
+    uint16_t cReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< The Cresel counter for the semi-persistently scheduled resources as per TS 38.214
+    uint8_t slResoReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< The Sidelink resource re-selection counter for the semi-persistently scheduled resources as per TS 38.214
+    std::set <NrSlSlotAlloc> slotAllocations; //!< List of all the slots available for transmission with the pool
+    uint8_t prevSlResoReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< Previously drawn Sidelink resource re-selection counter
+    uint8_t nrSlHarqId {std::numeric_limits <uint8_t>::max ()}; //!< The NR SL HARQ process id assigned at the time of transmitting new data
+    uint8_t nSelected {0}; //!< The number of slots selected by the scheduler for first reservation period
+    uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
+  };
+
   /**
    * \brief Send the NR Sidelink allocation from the UE scheduler to NrUeMac
    *

@@ -910,18 +910,6 @@ private:
    NrSlMacSapUser* macSapUser; //!< SAP pointer to the RLC instance of the LC
   };
 
-  ///NR Sidelink grant Information
-  struct NrSlGrantInfo
-  {
-    uint16_t cReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< The Cresel counter for the semi-persistently scheduled resources as per TS 38.214
-    uint8_t slResoReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< The Sidelink resource re-selection counter for the semi-persistently scheduled resources as per TS 38.214
-    std::set <NrSlSlotAlloc> slotAllocations; //!< List of all the slots available for transmission with the pool
-    uint8_t prevSlResoReselCounter {std::numeric_limits <uint8_t>::max ()}; //!< Previously drawn Sidelink resource re-selection counter
-    uint8_t nrSlHarqId {std::numeric_limits <uint8_t>::max ()}; //!< The NR SL HARQ process id assigned at the time of transmitting new data
-    uint8_t nSelected {0}; //!< The number of slots selected by the scheduler for first reservation period
-    uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
-  };
-
 
   /**
    * \brief Add NR Sidelink destination layer 2 Id
@@ -1017,9 +1005,9 @@ private:
    * \return The grant info for a destination based on the scheduler allocation
    *
    * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
-   * \see NrSlGrantInfo
+   * \see NrSlUeMacSchedSapUser::NrSlGrantInfo
    */
-  NrSlGrantInfo CreateGrantInfo (const std::set<NrSlSlotAlloc>& params);
+  NrSlUeMacSchedSapUser::NrSlGrantInfo CreateGrantInfo (const std::set<NrSlSlotAlloc>& params);
   /**
    * \brief Filter the Transmit opportunities.
    *
@@ -1085,8 +1073,8 @@ private:
   NrSlUeMacSchedSapProvider* m_nrSlUeMacSchedSapProvider   {nullptr};  //!< SAP Provider
   Time m_pRsvpTx {MilliSeconds (std::numeric_limits <uint8_t>::max ())}; //!< Resource Reservation Interval for NR Sidelink in ms
   Ptr<UniformRandomVariable> m_ueSelectedUniformVariable; //!< uniform random variable used for NR Sidelink
-  typedef std::unordered_map <uint32_t, struct NrSlGrantInfo> GrantInfo_t; //!< The typedef for the map of grant info per destination layer 2 id
-  typedef std::unordered_map <uint32_t, struct NrSlGrantInfo>::iterator GrantInfoIt_t; //!< The typedef for the iterator of the grant info map
+  typedef std::unordered_map <uint32_t, struct NrSlUeMacSchedSapUser::NrSlGrantInfo> GrantInfo_t; //!< The typedef for the map of grant info per destination layer 2 id
+  typedef std::unordered_map <uint32_t, struct NrSlUeMacSchedSapUser::NrSlGrantInfo>::iterator GrantInfoIt_t; //!< The typedef for the iterator of the grant info map
   GrantInfo_t m_grantInfo; //!< The map of grant info per destination layer 2 id
   double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero
   uint8_t m_slMaxTxTransNumPssch {0}; /**< Indicates the maximum transmission number

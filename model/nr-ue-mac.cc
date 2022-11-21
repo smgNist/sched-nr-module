@@ -2036,20 +2036,20 @@ NrUeMac::DoSchedUeNrSlConfigInd (const std::set<NrSlSlotAlloc>& slotAllocList)
 
   if (itGrantInfo == m_grantInfo.end ())
     {
-      NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
+      NrSlUeMacSchedSapUser::NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
       itGrantInfo = m_grantInfo.emplace (std::make_pair (slotAllocList.begin ()->dstL2Id, grant)).first;
     }
   else
     {
       NS_ASSERT_MSG (itGrantInfo->second.slResoReselCounter == 0, "Sidelink resource counter must be zero before assigning new grant for dst " << slotAllocList.begin ()->dstL2Id);
-      NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
+      NrSlUeMacSchedSapUser::NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
       itGrantInfo->second = grant;
     }
 
   NS_ASSERT_MSG (itGrantInfo->second.slotAllocations.size () > 0, "CreateGrantInfo failed to create grants");
 }
 
-NrUeMac::NrSlGrantInfo
+NrSlUeMacSchedSapUser::NrSlGrantInfo
 NrUeMac::CreateGrantInfo (const std::set<NrSlSlotAlloc>& slotAllocList)
 {
   NS_LOG_FUNCTION (this);
@@ -2059,7 +2059,7 @@ NrUeMac::CreateGrantInfo (const std::set<NrSlSlotAlloc>& slotAllocList)
   NS_LOG_DEBUG ("Creating grants with Resel Counter " << +m_reselCounter << " and cResel " << m_cResel);
 
   uint16_t resPeriodSlots = m_slTxPool->GetResvPeriodInSlots (GetBwpId (), m_poolId, m_pRsvpTx, m_nrSlUePhySapProvider->GetSlotPeriod ());
-  NrSlGrantInfo grant;
+  NrSlUeMacSchedSapUser::NrSlGrantInfo grant;
 
   grant.cReselCounter = m_cResel;
   //save reselCounter to be used if probability of keeping the resource would
