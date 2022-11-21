@@ -704,11 +704,19 @@ NrUeMac::DoSlotIndication (const SfnSf &sfn)
       SendSR ();
       m_srState = ACTIVE;
     }
-
+  bool isSidelinkSlot = false;
+  if (m_slTxPool)
+    {
+      isSidelinkSlot = m_slTxPool->IsSidelinkSlot (GetBwpId (), m_poolId, sfn.Normalize ());
+    }
+  if (m_nrSlUeMacSchedSapProvider)
+    {
+      m_nrSlUeMacSchedSapProvider->SlotIndication (sfn, isSidelinkSlot);
+    }
   if (m_nrSlUeCmacSapUser != nullptr)
     {
       //trigger SL only when it is a SL slot
-      if (m_slTxPool->IsSidelinkSlot (GetBwpId (), m_poolId, sfn.Normalize ()))
+      if (isSidelinkSlot)
         {
           DoNrSlSlotIndication (sfn);
         }

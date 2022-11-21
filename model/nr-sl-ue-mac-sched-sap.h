@@ -157,6 +157,12 @@ public:
    * \param params NrSlUeMacSchedSapProvider::NrSlSlotInfo
    */
   virtual void SchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlSlotInfo>& params) = 0;
+  /**
+   * \brief Tell the scheduler that a new slot has started
+   * \param sfn Ths current SfnSf
+   * \param isSidelinkSlot Whether the slot is a sidelink slot
+   */
+  virtual void SlotIndication (SfnSf sfn, bool isSidelinkSlot) = 0;
 };
 
 /**

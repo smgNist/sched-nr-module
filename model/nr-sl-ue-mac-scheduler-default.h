@@ -87,7 +87,12 @@ public:
    * \param params The list of NrSlUeMacSchedSapProvider::NrSlSlotInfo
    */
   virtual void DoSchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params) override;
-
+  /**
+   * \brief Tell the scheduler that a new slot has started
+   * \param sfn Ths current SfnSf
+   * \param isSidelinkSlot Whether the slot is a sidelink slot
+   */
+  void DoSlotIndication (SfnSf sfn, bool isSidelinkSlot);
 
   /**
    * \brief Install the AMC for the NR Sidelink

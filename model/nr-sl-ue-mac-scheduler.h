@@ -104,6 +104,12 @@ public:
    * \param params NrSlUeMacSchedSapProvider::NrSlSlotInfo
    */
   virtual void DoSchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params) = 0;
+  /**
+   * \brief Tell the scheduler that a new slot has started
+   * \param sfn Ths current SfnSf
+   * \param isSidelinkSlot Whether the slot is a sidelink slot
+   */
+  virtual void DoSlotIndication (SfnSf sfn, bool isSidelinkSlot) = 0;
 
   /**
    * Assign a fixed random variable stream number to the random variables
@@ -161,6 +167,7 @@ public:
 
   virtual void SchedUeNrSlRlcBufferReq (const struct NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams& params) override;
   virtual void SchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params) override;
+  virtual void SlotIndication (SfnSf sfn, bool isSidelinkSlot) override;
 
 private:
   NrSlUeMacScheduler* m_scheduler {nullptr}; //!< pointer to the scheduler API using this SAP

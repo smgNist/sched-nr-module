@@ -110,6 +110,11 @@ NrSlUeMacGeneralSchedSapProvider::SchedUeNrSlTriggerReq (uint32_t dstL2Id, const
 {
   m_scheduler->DoSchedUeNrSlTriggerReq (dstL2Id, params);
 }
+void
+NrSlUeMacGeneralSchedSapProvider::SlotIndication (SfnSf sfn, bool isSidelinkSlot)
+{
+  m_scheduler->DoSlotIndication (sfn, isSidelinkSlot);
+}
 
 } // namespace ns3
 

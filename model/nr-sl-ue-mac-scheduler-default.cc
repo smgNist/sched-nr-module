@@ -174,6 +174,16 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (uint32_t dstL2Id, const std:
   m_nrSlUeMacSchedSapUser->SchedUeNrSlConfigInd (allocList);
 }
 
+void
+NrSlUeMacSchedulerDefault::DoSlotIndication (SfnSf sfn, bool isSlotIndication)
+{
+  NS_LOG_FUNCTION (this << sfn.Normalize () << isSlotIndication);
+  if (!isSlotIndication)
+    {
+      return;
+    }
+
+}
 
 uint8_t
 NrSlUeMacSchedulerDefault::GetTotalSubCh () const
