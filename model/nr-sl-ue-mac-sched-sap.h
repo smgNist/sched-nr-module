@@ -215,6 +215,14 @@ std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapProvider::SchedUe
  */
 std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapProvider::NrSlSlotInfo const & p);
 
+/**
+ * \brief Stream output operator
+ * \param os output stream
+ * \param p struct whose parameter to output
+ * \return updated stream
+ */
+std::ostream & operator<< (std::ostream & os, NrSlUeMacSchedSapUser::NrSlGrantInfo const & p);
+
 } // namespace ns3
 
 #endif /* NR_SL_UE_MAC_SCHED_SAP_PROVIDER_H */

@@ -59,6 +59,26 @@ std::ostream &operator<< (std::ostream &os,
   return os;
 }
 
+std::ostream &operator<< (std::ostream &os,
+                          const NrSlUeMacSchedSapUser::NrSlGrantInfo &p)
+{
+  os << "cReselCounter: " << p.cReselCounter
+     << " slResoReselCounter: " << static_cast<uint16_t> (p.slResoReselCounter)
+     << " prevSlResoReselCounter: " << static_cast<uint16_t> (p.prevSlResoReselCounter)
+     << " nrSlHarqId: " << static_cast<uint16_t> (p.nrSlHarqId)
+     << " nSelected: " << static_cast<uint16_t> (p.nSelected)
+     << " tbTxCounter: " << static_cast<uint16_t> (p.tbTxCounter);
+  if (!p.slotAllocations.empty ())
+    {
+      os << " slots: ";
+      for (const auto &it : p.slotAllocations)
+        {
+          os << std::endl << "    " << it;
+        }
+    }
+  return os;
+}
+
 
 bool
 NrSlUeMacSchedSapProvider::NrSlSlotInfo::operator < (const NrSlSlotInfo &rhs) const
