@@ -81,14 +81,65 @@ public:
    */
   virtual void DoSchedUeNrSlRlcBufferReq (const struct NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams& params) override;
   /**
-   * \brief Send NR Sidleink trigger request from UE MAC to the UE scheduler
+   * \brief Send NR Sidelink trigger request from UE MAC to the UE scheduler
+   *
+   * \param sfn The SfnSf
+   * \param dstL2Id The destination layer 2 id
+   * \param availableReso The list of NrSlUeMacSchedSapProvider::NrSlSlotInfo
+   * \param ids available HARQ process IDs
+   */
+  virtual void DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& availableReso, const std::deque<uint8_t>& ids) override;
+  /**
+   * \brief Attempt to select new grant from the selection window
+   *
+   * If successful, CreateGrantInfo() will be called for SPS grants
    *
    * \param dstL2Id The destination layer 2 id
    * \param params The list of NrSlUeMacSchedSapProvider::NrSlSlotInfo
+   * \param ids available HARQ process IDs
    */
-  virtual void DoSchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params) override;
+  void AttemptGrantAllocation (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids);
+  /**
+   * \brief Create future SPS grants based on slot allocation
+   *
+   * \param slotAllocList The slot allocation list passed by a specific
+   *        scheduler to NrUeMac
+   * \return The grant info for a destination based on the scheduler allocation
+   *
+   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
+   * \see NrSlUeMacSchedSapUser::NrSlGrantInfo
+   */
+  NrSlUeMacSchedSapUser::NrSlGrantInfo CreateGrantInfo (const std::set<NrSlSlotAlloc>& params);
+  /**
+   * \brief Filter the Transmit opportunities.
+   *
+   * Due to the semi-persistent scheduling, after calling the GetNrSlTxOpportunities
+   * method, and before asking the scheduler for resources, we need to remove
+   * those available slots, which are already part of the existing grant.
+   *
+   * \param txOppr The list of available slots
+   * \return The list of slots which are not used by any existing semi-persistent grant.
+   */
+  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> FilterTxOpportunities (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOppr);
+  /**
+   * \brief Method to create future grant repetitions
+   * \param slotAllocList The slot allocation list from the selection window
+   * \param ids The available HARQ process IDs
+   *
+   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
+   */
+  void CreateFutureGrants (const std::set<NrSlSlotAlloc>& slotAllocList, const std::deque<uint8_t>& ids);
+
+  /**
+   * \brief Check whether any grants are at the processing delay deadline
+   *        to send back to NrUeMac
+   * \param sfn The current SfnSf
+   */
+  void CheckForGrantsToPublish (const SfnSf& sfn);
+
   /**
    * \brief Tell the scheduler that a new slot has started
+   * XXX candidate for removal
    * \param sfn Ths current SfnSf
    * \param isSidelinkSlot Whether the slot is a sidelink slot
    */
@@ -313,6 +364,36 @@ private:
    */
   std::vector <uint8_t> RandSelSbChStart (SbChInfo sbChInfo, uint8_t assignedSbCh);
 
+  /**
+   * \brief Get the random selection counter
+   * \return The randomly selected reselection counter
+   *
+   * See 38.321 section 5.22.1.1 V16
+   *
+   * For 50 ms we use the range as per 36.321 section 5.14.1.1
+   */
+  uint8_t GetRandomReselectionCounter() const;
+  /**
+   * \brief Get the lower bound for the Sidelink resource re-selection
+   *        counter when the resource reservation period is less than
+   *        100 ms. It is as per the Change Request (CR) R2-2005970
+   *        to TS 38.321.
+   * \param pRsrv The resource reservation period
+   * \return The lower bound of the range from which Sidelink resource re-selection
+   *         counter will be drawn.
+   */
+  uint8_t GetLowerBoundReselCounter (uint16_t pRsrv) const;
+  /**
+   * \brief Get the upper bound for the Sidelink resource re-selection
+   *        counter when the resource reservation period is less than
+   *        100 ms. It is as per the Change Request (CR) R2-2005970
+   *        to TS 38.321.
+   * \param pRsrv The resource reservation period
+   * \return The upper bound of the range from which Sidelink resource re-selection
+   *         counter will be drawn.
+   */
+  uint8_t GetUpperBoundReselCounter (uint16_t pRsrv) const;
+
   std::unordered_map<uint32_t, std::shared_ptr<NrSlUeMacSchedulerDstInfo> > m_dstMap; //!< The map of between destination layer 2 id and the destination info
 
   Ptr<NrAmc> m_nrSlAmc;           //!< AMC pointer for NR SL
@@ -320,6 +401,14 @@ private:
   bool    m_fixedNrSlMcs {false}; //!< Fixed MCS for *all* the destinations
 
   uint8_t m_initialNrSlMcs   {0}; //!< Initial (or fixed) value for NR SL MCS
+
+  std::map<uint32_t, struct NrSlUeMacSchedSapUser::NrSlGrantInfo> m_grantInfo;
+  Ptr<UniformRandomVariable> m_ueSelectedUniformVariable; //!< uniform random variable used for NR Sidelink
+  double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero
+  uint8_t m_reselCounter {0}; //!< The resource selection counter
+  uint16_t m_cResel {0}; //!< The C_resel counter
+  Time m_pRsvpTx {MilliSeconds (100)}; //!< Resource Reservation Interval for NR Sidelink in ms
+  uint8_t m_t1 {2}; //!< The offset in number of slots between the slot in which the resource selection is triggered and the start of the selection window
 
 };
 

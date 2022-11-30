@@ -81,6 +81,7 @@ public:
       this->harqEnabled = harqEnabled;
       this->pdb = pdb;
       this->dynamic = dynamic;
+      this->rri = rri;
     }
     uint32_t dstL2Id {std::numeric_limits <uint32_t>::max ()}; //!< L2 destination id
     uint8_t  lcId {std::numeric_limits <uint8_t>::max ()};     //!< logical channel identifier

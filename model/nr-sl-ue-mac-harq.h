@@ -78,29 +78,35 @@ public:
    * \brief Assign NR Sidelink HARQ process id to a destination
    *
    * This method is used to assign a HARQ process id to a destination
-   * if there is an available Sidelink process in NrSlUeMacHarq#m_nrSlHarqIdBuffer.
    * In this implementation, an idle Sidelink process id is basically a number
    * stored in NrSlUeMacHarq#m_nrSlHarqIdBuffer vector, which starts from zero,
    * and ends at <b>maxSidelinkProcess - 1</b>.
    * Moreover, HARQ process id is the same as Sidelink process id.
    *
+   * \param harqId The requested HARQ process ID
    * \param dstL2Id The destination Layer 2 id
    * \return The NR Sidelink HARQ id
    */
-  uint8_t AssignNrSlHarqProcessId (uint32_t dstL2Id);
+  uint8_t AssignNrSlHarqProcessId (uint8_t harqId, uint32_t dstL2Id);
 
   /**
    * \brief Get the total number of available HARQ process ids
    * \return The total number of available HARQ process ids
    */
-  uint8_t GetNumAvaiableHarqIds () const;
+  uint8_t GetNumAvailableHarqIds () const;
+
+  /**
+   * \brief Get a deque containing the available HARQ process IDs
+   * \return A deque (possibly empty) containing available HARQ process IDs
+   */
+  std::deque<uint8_t> GetAvailableHarqIds () const;
 
   /**
    * \brief Is the given HARQ id available
    * \param harqId The HARQ process id
    * \return returns true if the HARQ id is available; otherwise false
    */
-  bool IsHarqIdAvaiable (uint8_t harqId) const;
+  bool IsHarqIdAvailable (uint8_t harqId) const;
 
   /**
    * \brief Add the packet to the Sidelink process buffer, which is identified
@@ -149,7 +155,6 @@ private:
   };
 
   std::vector <NrSlProcessInfo> m_nrSlHarqPktBuffer; //!< NR SL HARQ packet buffer
-  std::deque <uint8_t> m_nrSlHarqIdBuffer; //!< A container to store available HARQ/SL process ids
 };
 
 } // namespace ns3

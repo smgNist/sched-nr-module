@@ -61,6 +61,7 @@ NrSlUeMacSchedulerDefault::GetTypeId (void)
 NrSlUeMacSchedulerDefault::NrSlUeMacSchedulerDefault ()
 {
   m_uniformVariable = CreateObject<UniformRandomVariable> ();
+  m_ueSelectedUniformVariable = CreateObject<UniformRandomVariable> ();
 }
 
 NrSlUeMacSchedulerDefault::~NrSlUeMacSchedulerDefault ()
@@ -155,34 +156,369 @@ NrSlUeMacSchedulerDefault::DoSchedUeNrSlRlcBufferReq (const struct NrSlUeMacSche
   NS_FATAL_ERROR ("The LC does not exist. Can't update");
 }
 
+uint8_t
+NrSlUeMacSchedulerDefault::GetRandomReselectionCounter () const
+{
+  uint8_t min;
+  uint8_t max;
+  uint16_t periodInt = static_cast <uint16_t> (m_pRsvpTx.GetMilliSeconds ());
+
+  switch(periodInt)
+  {
+    case 100:
+    case 150:
+    case 200:
+    case 250:
+    case 300:
+    case 350:
+    case 400:
+    case 450:
+    case 500:
+    case 550:
+    case 600:
+    case 700:
+    case 750:
+    case 800:
+    case 850:
+    case 900:
+    case 950:
+    case 1000:
+      min = 5;
+      max = 15;
+      break;
+    default:
+      if (periodInt < 100)
+        {
+          min = GetLowerBoundReselCounter (periodInt);
+          max = GetUpperBoundReselCounter (periodInt);
+        }
+      else
+        {
+          NS_FATAL_ERROR ("VALUE NOT SUPPORTED!");
+        }
+      break;
+  }
+
+  NS_LOG_DEBUG ("Range to choose random reselection counter. min: " << +min << " max: " << +max);
+  return m_ueSelectedUniformVariable->GetInteger (min, max);
+}
+
+uint8_t
+NrSlUeMacSchedulerDefault::GetLowerBoundReselCounter (uint16_t pRsrv) const
+{
+  NS_LOG_FUNCTION (this << pRsrv);
+  NS_ASSERT_MSG (pRsrv < 100, "Resource reservation must be less than 100 ms");
+  uint8_t lBound = (5 * std::ceil (100 / (std::max (static_cast <uint16_t> (20), pRsrv))));
+  return lBound;
+}
+
+uint8_t
+NrSlUeMacSchedulerDefault::GetUpperBoundReselCounter (uint16_t pRsrv) const
+{
+  NS_LOG_FUNCTION (this << pRsrv);
+  NS_ASSERT_MSG (pRsrv < 100, "Resource reservation must be less than 100 ms");
+  uint8_t uBound = (15 * std::ceil (100 / (std::max (static_cast <uint16_t> (20), pRsrv))));
+  return uBound;
+}
+
+
 void
-NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params)
+NrSlUeMacSchedulerDefault::DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& availableReso, const std::deque<uint8_t>& ids)
 {
   NS_LOG_FUNCTION (this << dstL2Id);
 
-  const auto itDst = m_dstMap.find (dstL2Id);
-  NS_ABORT_MSG_IF (itDst == m_dstMap.end (), "Destination " << dstL2Id << "info not found");
+  const auto itDstInfo = m_dstMap.find (dstL2Id);
+  NS_ABORT_MSG_IF (itDstInfo == m_dstMap.end (), "Destination " << dstL2Id << "info not found");
+
+  const auto & lcgMap = itDstInfo->second->GetNrSlLCG (); //Map of unique_ptr should not copy
+
+  NS_ASSERT_MSG (lcgMap.size () == 1, "NrSlUeMacSchedulerDefault can handle only one LCG");
+
+  std::vector<uint8_t> lcVector = lcgMap.begin ()->second->GetLCId ();
+  NS_ASSERT_MSG (lcVector.size () == 1, "NrSlUeMacSchedulerDefault can handle only one LC");
+
+  uint32_t bufferSize = lcgMap.begin ()->second->GetTotalSizeOfLC (lcVector.at (0));
+
+  // Determine if any grants need to be created or refreshed
+  const auto itGrantInfo = m_grantInfo.find (dstL2Id);
+  bool foundDest = itGrantInfo != m_grantInfo.end () ? true : false;
+
+  if (!foundDest && bufferSize && !ids.empty ())
+    {
+      auto filteredReso = FilterTxOpportunities (availableReso);
+      if (!filteredReso.empty ())
+        {
+          //we ask the scheduler for resources only if the filtered list is not empty.
+          NS_LOG_INFO ("Scheduling the destination " << dstL2Id);
+          m_reselCounter = GetRandomReselectionCounter ();
+          m_cResel = m_reselCounter * 10;
+          AttemptGrantAllocation (dstL2Id, filteredReso, ids);
+          m_reselCounter = 0;
+          m_cResel = 0;
+        }
+      else
+        {
+          NS_LOG_DEBUG ("Do not have enough slots to allocate. Not calling the scheduler for dst " << dstL2Id);
+          CheckForGrantsToPublish (sfn);
+          return;
+        }
+    }
+  else if (foundDest)
+    {
+      //If the re-selection counter of the found destination is not zero,
+      //it means it already have resources assigned to it via semi-persistent
+      //scheduling, thus, we go to the next destination
+      //
+      // Note:  This is behavior we want to change to allow for reselection
+      //
+      if (itGrantInfo->second.slResoReselCounter != 0)
+        {
+          NS_LOG_INFO ("Destination " << dstL2Id << " already have the allocation, scheduling the next destination, if any");
+          CheckForGrantsToPublish (sfn);
+          return;
+        }
+      // If the HARQ ID that has been in use for this SPS grant is not yet
+      // returned to the pool of IDs, suppress grant reselection.
+      bool harqIdAvailable = (std::find (ids.begin (), ids.end (), itGrantInfo->second.nrSlHarqId) != ids.end ());
+      double randProb = m_ueSelectedUniformVariable->GetValue (0, 1);
+      if (itGrantInfo->second.cReselCounter > 0 &&
+        itGrantInfo->second.slotAllocations.size () > 0 && m_slProbResourceKeep > randProb)
+        {
+          NS_LOG_INFO ("Keeping the resource for " << dstL2Id);
+          NS_ASSERT_MSG (itGrantInfo->second.slResoReselCounter == 0, "Sidelink resource re-selection counter must be zero before continuing with the same grant for dst " << dstL2Id);
+          //keeping the resource, reassign the same sidelink resource re-selection
+          //counter we chose while creating the fresh grant
+          itGrantInfo->second.slResoReselCounter = itGrantInfo->second.prevSlResoReselCounter;
+          CheckForGrantsToPublish (sfn);
+          return;
+        }
+      else if (harqIdAvailable)
+        {
+          //we need to choose new resource so erase the previous allocations
+          NS_LOG_DEBUG ("Choosing new resources : ResoReselCounter "
+            << +itGrantInfo->second.slResoReselCounter
+            << " cResel " << itGrantInfo->second.cReselCounter
+            << " remaining alloc " << itGrantInfo->second.slotAllocations.size ()
+            << " slProbResourceKeep " << +m_slProbResourceKeep
+            << " random prob " << randProb);
+          itGrantInfo->second.slotAllocations.erase (itGrantInfo->second.slotAllocations.begin (), itGrantInfo->second.slotAllocations.end ());
+        }
+      else
+        {
+          NS_LOG_INFO ("Waiting to reselect future SPS grants until HARQ process ID is available");
+          CheckForGrantsToPublish (sfn);
+          return;
+        }
+      m_reselCounter = GetRandomReselectionCounter ();
+      m_cResel = m_reselCounter * 10;
+      NS_LOG_DEBUG ("Resel Counter " << +m_reselCounter << " cResel " << m_cResel);
+      if (ids.empty ())
+        {
+          return;  // No HARQ IDs available
+        }
+      auto filteredReso = FilterTxOpportunities (availableReso);
+      if (!filteredReso.empty ())
+        {
+          //we ask the scheduler for resources only if the filtered list is not empty.
+          NS_LOG_INFO ("Scheduling the destination " << dstL2Id);
+          AttemptGrantAllocation (dstL2Id, filteredReso, ids);
+          m_reselCounter = 0;
+          m_cResel = 0;
+        }
+      else
+        {
+          NS_LOG_DEBUG ("Do not have enough slots to allocate. Not calling the scheduler for dst " << dstL2Id);
+          m_reselCounter = 0;
+          m_cResel = 0;
+        }
+    }
+  CheckForGrantsToPublish (sfn);
+}
+
+void
+NrSlUeMacSchedulerDefault::AttemptGrantAllocation (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids)
+{
+  NS_LOG_FUNCTION (this << dstL2Id);
 
   std::set<NrSlSlotAlloc> allocList;
 
-  bool allocated = DoNrSlAllocation (params, itDst->second, allocList);
+  const auto itDstInfo = m_dstMap.find (dstL2Id);
+  bool allocated = DoNrSlAllocation (params, itDstInfo->second, allocList);
 
   if (!allocated)
     {
       return;
     }
-  m_nrSlUeMacSchedSapUser->SchedUeNrSlConfigInd (allocList);
+  CreateFutureGrants (allocList, ids);
 }
 
 void
-NrSlUeMacSchedulerDefault::DoSlotIndication (SfnSf sfn, bool isSlotIndication)
+NrSlUeMacSchedulerDefault::CreateFutureGrants (const std::set<NrSlSlotAlloc>& slotAllocList, const std::deque<uint8_t>& ids)
 {
-  NS_LOG_FUNCTION (this << sfn.Normalize () << isSlotIndication);
-  if (!isSlotIndication)
+  NS_LOG_FUNCTION (this);
+  auto itGrantInfo = m_grantInfo.find (slotAllocList.begin ()->dstL2Id);
+
+  if (itGrantInfo == m_grantInfo.end ())
+    {
+      NrSlUeMacSchedSapUser::NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
+      grant.nrSlHarqId = ids.front (); // Assign new HARQ process ID
+      itGrantInfo = m_grantInfo.emplace (std::make_pair (slotAllocList.begin ()->dstL2Id, grant)).first;
+    }
+  else
+    {
+      NS_ASSERT_MSG (itGrantInfo->second.slResoReselCounter == 0, "Sidelink resource counter must be zero before assigning new grant for dst " << slotAllocList.begin ()->dstL2Id);
+      uint8_t prevHarqId = itGrantInfo->second.nrSlHarqId;
+      NrSlUeMacSchedSapUser::NrSlGrantInfo grant = CreateGrantInfo (slotAllocList);
+      itGrantInfo->second = grant;
+      itGrantInfo->second.nrSlHarqId = prevHarqId; // Preserve previous ID
+    }
+
+  NS_ASSERT_MSG (itGrantInfo->second.slotAllocations.size () > 0, "CreateGrantInfo failed to create grants");
+}
+
+NrSlUeMacSchedSapUser::NrSlGrantInfo
+NrSlUeMacSchedulerDefault::CreateGrantInfo (const std::set<NrSlSlotAlloc>& slotAllocList)
+{
+  NS_LOG_FUNCTION (this);
+  NS_ASSERT_MSG ((m_reselCounter != 0), "Can not create grants with 0 Resource selection counter");
+  NS_ASSERT_MSG ((m_cResel != 0), "Can not create grants with 0 cResel counter");
+
+  NS_LOG_DEBUG ("Creating grants with Resel Counter " << +m_reselCounter << " and cResel " << m_cResel);
+
+#ifdef NOTYETPORTED
+  // This method is not yet supported by the MAC/Scheduler API
+  // m_pRsvpTx is available as the 'rri' parameter in SidelinkLogicalChannelInfo
+  // Other values require access to the NrUeMac, or SAP API extension
+  uint16_t resPeriodSlots = m_slTxPool->GetResvPeriodInSlots (GetBwpId (), m_poolId, m_pRsvpTx, m_nrSlUePhySapProvider->GetSlotPeriod ());
+#endif
+  uint16_t resPeriodSlots = 400; // XXX workaround for value used in examples
+  NrSlUeMacSchedSapUser::NrSlGrantInfo grant;
+
+  grant.cReselCounter = m_cResel;
+  //save reselCounter to be used if probability of keeping the resource would
+  //be higher than the configured one
+  grant.prevSlResoReselCounter = m_reselCounter;
+  grant.slResoReselCounter = m_reselCounter;
+
+  // if further IDs are needed and the std::deque needs to be popped from
+  // front, need to copy the std::deque to remove its constness
+  grant.nSelected = static_cast<uint8_t>(slotAllocList.size ());
+  NS_LOG_DEBUG ("nSelected = " << +grant.nSelected);
+
+  for (uint16_t i = 0; i < m_cResel; i++)
+    {
+      for (const auto &it : slotAllocList)
+        {
+          auto slAlloc = it;
+          slAlloc.sfn.Add (i * resPeriodSlots);
+          NS_LOG_DEBUG ("First tx at : Frame = " << slAlloc.sfn.GetFrame ()
+                        << " SF = " << +slAlloc.sfn.GetSubframe ()
+                        << " slot = " << slAlloc.sfn.GetSlot ());
+          bool insertStatus = grant.slotAllocations.emplace (slAlloc).second;
+          NS_ASSERT_MSG (insertStatus, "slot allocation already exist");
+        }
+    }
+
+  return grant;
+}
+
+void
+NrSlUeMacSchedulerDefault::CheckForGrantsToPublish (const SfnSf& sfn)
+{
+  NS_LOG_FUNCTION (this << sfn.Normalize ());
+  for (auto & itGrantInfo : m_grantInfo)
+    {
+      if (itGrantInfo.second.slResoReselCounter == 0)
+        {
+          continue;
+        }
+      if (itGrantInfo.second.slotAllocations.begin ()->sfn.Normalize () > sfn.Normalize () + m_t1)
+        {
+          continue;
+        }
+      // The next set of slots (NDI + any retransmissions) should be added
+      // to a grant, and deleted from m_grantInfo
+      auto slotIt = itGrantInfo.second.slotAllocations.begin ();
+      NS_ASSERT_MSG (slotIt->ndi == 1, "New data indication not found");
+      NS_ASSERT_MSG (slotIt->sfn.Normalize () >= sfn.Normalize (), "Stale slot in m_grantInfo");
+      NrSlSlotAlloc currentSlot = *slotIt;
+      NS_LOG_INFO ("Slot at : Frame = " << currentSlot.sfn.GetFrame ()
+                   << " SF = " << +currentSlot.sfn.GetSubframe ()
+                   << " slot = " << currentSlot.sfn.GetSlot ());
+      uint32_t tbSize = 0;
+      //sum all the assigned bytes to each LC of this destination
+      for (const auto & it : currentSlot.slRlcPduInfo)
+        {
+          NS_LOG_DEBUG ("LC " << static_cast <uint16_t> (it.lcid) << " was assigned " << it.size << "bytes");
+          tbSize += it.size;
+        }
+      itGrantInfo.second.tbTxCounter = 1;
+      NrSlUeMacSchedSapUser::NrSlGrant grant;
+      grant.nrSlHarqId = itGrantInfo.second.nrSlHarqId;
+      grant.nSelected = itGrantInfo.second.nSelected;
+      grant.tbTxCounter = itGrantInfo.second.tbTxCounter;
+      grant.tbSize = tbSize;
+      // Add the NDI slot and retransmissions to the set of slot allocations
+      grant.slotAllocations.emplace (currentSlot);
+      itGrantInfo.second.slotAllocations.erase (slotIt);
+      // Add any retransmission slots and erase them
+      slotIt = itGrantInfo.second.slotAllocations.begin ();
+      while (slotIt != itGrantInfo.second.slotAllocations.end () && slotIt->ndi == 0)
+        {
+          NrSlSlotAlloc nextSlot = *slotIt;
+          grant.slotAllocations.emplace (nextSlot);
+          itGrantInfo.second.slotAllocations.erase (slotIt);
+          slotIt = itGrantInfo.second.slotAllocations.begin ();
+        }
+      m_nrSlUeMacSchedSapUser->SchedUeNrSlConfigInd (currentSlot.dstL2Id, currentSlot.lcId, grant);
+      // Decrement counters for reselection
+      --itGrantInfo.second.slResoReselCounter;
+      --itGrantInfo.second.cReselCounter;
+    }
+}
+
+std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>
+NrSlUeMacSchedulerDefault::FilterTxOpportunities (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOppr)
+{
+  NS_LOG_FUNCTION (this);
+
+  if (txOppr.empty ())
+    { 
+      return txOppr;
+    }
+
+  NrSlSlotAlloc dummyAlloc;
+
+  for (const auto & itDst : m_grantInfo)
+    {
+      auto itTxOppr = txOppr.begin ();
+      while (itTxOppr != txOppr.end ())
+        {
+          dummyAlloc.sfn = itTxOppr->sfn;
+          auto itAlloc = itDst.second.slotAllocations.find (dummyAlloc);
+          if (itAlloc != itDst.second.slotAllocations.end ())
+            { 
+              itTxOppr = txOppr.erase (itTxOppr);
+            }
+          else
+            { 
+              ++itTxOppr;
+            }
+        }
+    }
+  
+  return txOppr;
+}
+
+// XXX the below is a candidate for removal
+void
+NrSlUeMacSchedulerDefault::DoSlotIndication (SfnSf sfn, bool isSidelinkSlot)
+{
+  NS_LOG_FUNCTION (this << sfn.Normalize () << isSidelinkSlot);
+  if (!isSidelinkSlot)
     {
       return;
     }
-
 }
 
 uint8_t
@@ -275,8 +611,9 @@ int64_t
 NrSlUeMacSchedulerDefault::AssignStreams (int64_t stream)
 {
   NS_LOG_FUNCTION (this << stream);
-  m_uniformVariable->SetStream (stream );
-  return 1;
+  m_uniformVariable->SetStream (stream);
+  m_ueSelectedUniformVariable->SetStream (stream + 1);
+  return 2;
 }
 
 bool
@@ -341,6 +678,7 @@ NrSlUeMacSchedulerDefault::DoNrSlAllocation (const std::list <NrSlUeMacSchedSapP
       NrSlSlotAlloc slotAlloc;
       slotAlloc.sfn = itTxOpps->sfn;
       slotAlloc.dstL2Id = dstInfo->GetDstL2Id ();
+      slotAlloc.lcId = lcVector.at (0);
       slotAlloc.priority = lcgMap.begin ()->second->GetLcPriority (lcVector.at (0));
       SlRlcPduInfo slRlcPduInfo (lcVector.at (0), tbs);
       slotAlloc.slRlcPduInfo.push_back (slRlcPduInfo);

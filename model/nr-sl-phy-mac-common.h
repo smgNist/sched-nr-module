@@ -149,6 +149,7 @@ struct NrSlSlotAlloc
 {
   SfnSf sfn {}; //!< The SfnSf
   uint32_t dstL2Id {std::numeric_limits <uint32_t>::max ()}; //!< The destination Layer 2 Id
+  uint8_t lcId {std::numeric_limits <uint8_t>::max ()}; //!< The logical channel ID
 
   uint8_t ndi {std::numeric_limits <uint8_t>::max ()}; //!< The flag to indicate the new data allocation
   uint8_t rv {std::numeric_limits <uint8_t>::max ()}; //!< The redundancy version

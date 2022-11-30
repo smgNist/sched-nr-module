@@ -21,6 +21,7 @@
 #include <ns3/packet-burst.h>
 #include <ns3/packet.h>
 #include <ns3/log.h>
+#include <ns3/simulator.h>
 
 namespace ns3 {
 
@@ -51,7 +52,6 @@ void
 NrSlUeMacHarq::DoDispose ()
 {
   NS_LOG_FUNCTION (this);
-  m_nrSlHarqIdBuffer.clear ();
   for (auto it:m_nrSlHarqPktBuffer)
     {
       it.pktBurst = nullptr;
@@ -64,14 +64,6 @@ NrSlUeMacHarq::InitHarqBuffer (uint8_t maxSlProcesses)
 {
   NS_LOG_FUNCTION (this << +maxSlProcesses);
 
-  NS_ASSERT_MSG (m_nrSlHarqIdBuffer.size () == 0 && m_nrSlHarqPktBuffer.size () == 0, "HARQ buffers not empty. Can not initialize.");
-
-  m_nrSlHarqIdBuffer.resize (maxSlProcesses);
-  for (uint8_t id = 0; id < maxSlProcesses; id++)
-    {
-      m_nrSlHarqIdBuffer.at (id) = id;
-    }
-
   m_nrSlHarqPktBuffer.resize (maxSlProcesses);
   for (uint8_t i = 0; i < maxSlProcesses; i++)
     {
@@ -81,36 +73,51 @@ NrSlUeMacHarq::InitHarqBuffer (uint8_t maxSlProcesses)
 }
 
 uint8_t
-NrSlUeMacHarq::AssignNrSlHarqProcessId (uint32_t dstL2Id)
+NrSlUeMacHarq::AssignNrSlHarqProcessId (uint8_t harqId, uint32_t dstL2Id)
 {
-  NS_LOG_FUNCTION (this << dstL2Id);
-  NS_ABORT_MSG_IF (GetNumAvaiableHarqIds () == 0, "All the Sidelink processes are busy");
-  uint8_t availableHarqId = m_nrSlHarqIdBuffer.front ();
-  //remove it. It is the indication that this id is not available anymore
-  m_nrSlHarqIdBuffer.pop_front ();
+  NS_LOG_FUNCTION (this << +harqId << dstL2Id);
+  NS_ABORT_MSG_IF (GetNumAvailableHarqIds () == 0, "All the Sidelink processes are busy");
+  Ptr<PacketBurst> pb = m_nrSlHarqPktBuffer.at (harqId).pktBurst;
+  NS_ABORT_MSG_IF (m_nrSlHarqPktBuffer.at (harqId).dstL2Id != std::numeric_limits <uint32_t>::max (), "HARQ process ID already assigned");
   //set the given destination in m_nrSlHarqPktBuffer at the index equal to
-  //availableHarqId so we can check it while adding the packet.
-  m_nrSlHarqPktBuffer.at (availableHarqId).dstL2Id = dstL2Id;
-  return availableHarqId;
+  //harqId, to reserve it
+  m_nrSlHarqPktBuffer.at (harqId).dstL2Id = dstL2Id;
+  return harqId;
 }
 
 uint8_t
-NrSlUeMacHarq::GetNumAvaiableHarqIds () const
+NrSlUeMacHarq::GetNumAvailableHarqIds () const
 {
-  return m_nrSlHarqIdBuffer.size ();
-}
-
-bool
-NrSlUeMacHarq::IsHarqIdAvaiable (uint8_t harqId) const
-{
-  for (const auto & it : m_nrSlHarqIdBuffer)
+  uint8_t count = 0;
+  for (uint32_t i = 0; i < m_nrSlHarqPktBuffer.size (); i++)
     {
-      if (it == harqId)
+      if (m_nrSlHarqPktBuffer.at (i).dstL2Id == std::numeric_limits <uint32_t>::max ())
         {
-          return true;
+          count++;
         }
     }
-  return false;
+  return count;
+}
+
+std::deque<uint8_t>
+NrSlUeMacHarq::GetAvailableHarqIds () const
+{
+  std::deque<uint8_t> dq;
+  for (uint32_t i = 0; i < m_nrSlHarqPktBuffer.size (); i++)
+    {
+      if (m_nrSlHarqPktBuffer.at (i).dstL2Id == std::numeric_limits <uint32_t>::max ())
+        {
+          dq.push_back (i);
+        }
+    }
+  return dq;
+}
+
+
+bool
+NrSlUeMacHarq::IsHarqIdAvailable (uint8_t harqId) const
+{
+  return (m_nrSlHarqPktBuffer.at (harqId).dstL2Id == std::numeric_limits <uint32_t>::max () ? true : false);
 }
 
 void
@@ -133,10 +140,6 @@ NrSlUeMacHarq::RecvNrSlHarqFeedback (uint32_t dstL2Id, uint8_t harqId)
 {
   NS_LOG_FUNCTION (this << dstL2Id << +harqId);
   NS_ABORT_MSG_IF (m_nrSlHarqPktBuffer.at (harqId).dstL2Id != dstL2Id, "the HARQ id " << +harqId << " does not belongs to the destination " << dstL2Id);
-  //we expect the given HARQ to be not available before inserting back in m_nrSlHarqIdBuffer
-  NS_ASSERT_MSG (IsHarqIdAvaiable (harqId) == false, "Can not receive a feedback for a already available HARQ id " << harqId);
-  //Put back the HARQ id so to be assigned again
-  m_nrSlHarqIdBuffer.push_back (harqId);
   //Refresh HARQ packet buffer
   Ptr<PacketBurst> pb = CreateObject <PacketBurst> ();
   m_nrSlHarqPktBuffer.at (harqId).pktBurst = pb;

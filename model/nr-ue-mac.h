@@ -28,6 +28,7 @@
 #include <ns3/traced-callback.h>
 
 #include <unordered_map>
+#include <queue>
 
 #include <ns3/nr-sl-mac-sap.h>
 #include <ns3/nr-sl-ue-cmac-sap.h>
@@ -846,16 +847,14 @@ protected:
    */
   void DoReceiveSensingData (SensingData sensingData);
 
-
   // forwarded from MemberNrSlUeMacSchedSapUser
   /**
-   * \brief Method to communicate NR SL allocations from NR SL UE scheduler
-   * \param slotAllocList The slot allocation list passed by a specific
-   *        scheduler to NrUeMac
-   *
-   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
+   * \brief Method to communicate NR SL grants from NR SL UE scheduler
+   * \param dstL2Id destination L2 ID
+   * \param lcId Logical Channel ID
+   * \param grant The sidelink grant
    */
-  void DoSchedUeNrSlConfigInd (const std::set<NrSlSlotAlloc>& slotAllocList);
+  void DoSchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlUeMacSchedSapUser::NrSlGrant& grant);
 
   /**
    * \brief Method through which the NR SL scheduler gets the total number of NR
@@ -969,57 +968,6 @@ private:
    */
   uint8_t GetTotalSubCh (uint16_t poolId) const;
   /**
-   * \brief Get the random selection counter
-   * \return The randomly selected reselection counter
-   *
-   * See 38.321 section 5.22.1.1 V16
-   *
-   * For 50 ms we use the range as per 36.321 section 5.14.1.1
-   */
-  uint8_t GetRndmReselectionCounter() const;
-  /**
-   * \brief Get the lower bound for the Sidelink resource re-selection
-   *        counter when the resource reservation period is less than
-   *        100 ms. It is as per the Change Request (CR) R2-2005970
-   *        to TS 38.321.
-   * \param pRsrv The resource reservation period
-   * \return The lower bound of the range from which Sidelink resource re-selection
-   *         counter will be drawn.
-   */
-  uint8_t GetLoBoundReselCounter (uint16_t pRsrv) const;
-  /**
-   * \brief Get the upper bound for the Sidelink resource re-selection
-   *        counter when the resource reservation period is less than
-   *        100 ms. It is as per the Change Request (CR) R2-2005970
-   *        to TS 38.321.
-   * \param pRsrv The resource reservation period
-   * \return The upper bound of the range from which Sidelink resource re-selection
-   *         counter will be drawn.
-   */
-  uint8_t GetUpBoundReselCounter (uint16_t pRsrv) const;
-  /**
-   * \brief Create grant info
-   *
-   * \param slotAllocList The slot allocation list passed by a specific
-   *        scheduler to NrUeMac
-   * \return The grant info for a destination based on the scheduler allocation
-   *
-   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
-   * \see NrSlUeMacSchedSapUser::NrSlGrantInfo
-   */
-  NrSlUeMacSchedSapUser::NrSlGrantInfo CreateGrantInfo (const std::set<NrSlSlotAlloc>& params);
-  /**
-   * \brief Filter the Transmit opportunities.
-   *
-   * Due to the semi-persistent scheduling, after calling the GetNrSlTxOpportunities
-   * method, and before asking the scheduler for resources, we need to remove
-   * those available slots, which are already part of the existing grant.
-   *
-   * \param txOppr The list of available slots
-   * \return The list of slots which are not used by any existing semi-persistent grant.
-   */
-  std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> FilterTxOpportunities (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOppr);
-  /**
    * \brief Update the sensing window
    * \param sfn The current system frame, subframe, and slot number. This SfnSf
    *        is aligned with the SfnSf of the physical layer.
@@ -1072,10 +1020,7 @@ private:
   NrSlUeMacCschedSapProvider* m_nrSlUeMacCschedSapProvider {nullptr};  //!< SAP Provider
   NrSlUeMacSchedSapProvider* m_nrSlUeMacSchedSapProvider   {nullptr};  //!< SAP Provider
   Time m_pRsvpTx {MilliSeconds (std::numeric_limits <uint8_t>::max ())}; //!< Resource Reservation Interval for NR Sidelink in ms
-  Ptr<UniformRandomVariable> m_ueSelectedUniformVariable; //!< uniform random variable used for NR Sidelink
-  typedef std::unordered_map <uint32_t, struct NrSlUeMacSchedSapUser::NrSlGrantInfo> GrantInfo_t; //!< The typedef for the map of grant info per destination layer 2 id
-  typedef std::unordered_map <uint32_t, struct NrSlUeMacSchedSapUser::NrSlGrantInfo>::iterator GrantInfoIt_t; //!< The typedef for the iterator of the grant info map
-  GrantInfo_t m_grantInfo; //!< The map of grant info per destination layer 2 id
+  std::map<std::pair<uint32_t, uint8_t>, std::queue<NrSlUeMacSchedSapUser::NrSlGrant> > m_slGrants; //!< Grants provided by the sidelink scheduler
   double m_slProbResourceKeep {0.0}; //!< Sidelink probability of keeping a resource after resource re-selection counter reaches zero
   uint8_t m_slMaxTxTransNumPssch {0}; /**< Indicates the maximum transmission number
                                      (including new transmission and
@@ -1091,6 +1036,11 @@ private:
                                     minimum number of candidate single-slot
                                     resources to be selected using sensing procedure.
                                     */
+  // TODO: These two member variables are only needed for step 6 of the
+  // sensing algorithm.  reselCounter should be read from the received
+  // SCI 1-A, and cResel should be 10 * reselCounter.  These should not
+  // be member variables but local scope variables based on SCI 1-A
+  // processed in the sensing step 6
   uint8_t m_reselCounter {0}; //!< The resource selection counter
   uint16_t m_cResel {0}; //!< The C_resel counter
 

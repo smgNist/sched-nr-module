@@ -25,6 +25,7 @@
 #include <list>
 #include <vector>
 #include <memory>
+#include <deque>
 
 
 namespace ns3 {
@@ -153,10 +154,12 @@ public:
   /**
    * \brief Send NR Sidleink trigger request from UE MAC to the UE scheduler
    *
+   * \param sfn The SfnSf
    * \param dstL2Id The destination layer 2 id
    * \param params NrSlUeMacSchedSapProvider::NrSlSlotInfo
+   * \param ids available HARQ process IDs
    */
-  virtual void SchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlSlotInfo>& params) = 0;
+  virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlSlotInfo>& params, const std::deque<uint8_t>& ids) = 0;
   /**
    * \brief Tell the scheduler that a new slot has started
    * \param sfn Ths current SfnSf
@@ -190,15 +193,22 @@ public:
     uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
   };
 
+  struct NrSlGrant
+  {
+    std::set <NrSlSlotAlloc> slotAllocations; //!< List of all the slots available for transmission with the pool
+    uint8_t nrSlHarqId {std::numeric_limits <uint8_t>::max ()}; //!< The NR SL HARQ process id assigned at the time of transmitting new data
+    uint8_t nSelected {0}; //!< The number of slots selected by the scheduler for first reservation period
+    uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
+    uint32_t tbSize {0}; //!< Size of Transport Block in bytes
+  };
+
   /**
-   * \brief Send the NR Sidelink allocation from the UE scheduler to NrUeMac
-   *
-   * \param slotAllocList The slot allocation list passed by a specific
-   *        scheduler to NrUeMac
-   *
-   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
+   * \brief Method to communicate NR SL grants from NR SL UE scheduler
+   * \param dstL2Id destination L2 ID
+   * \param lcId Logical Channel ID
+   * \param grant The sidelink grant
    */
-  virtual void SchedUeNrSlConfigInd (const std::set<NrSlSlotAlloc>& slotAllocList) = 0;
+  virtual void SchedUeNrSlConfigInd (uint32_t dstL2Id, uint8_t lcId, const NrSlGrant& grant) = 0;
 
   /**
    * \brief Method to get total number of sub-channels.

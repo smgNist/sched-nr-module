@@ -100,10 +100,12 @@ public:
   /**
    * \brief Send NR Sidleink trigger request from UE MAC to the UE scheduler
    *
+   * \param sfn The SfnSf
    * \param dstL2Id The destination layer 2 id
    * \param params NrSlUeMacSchedSapProvider::NrSlSlotInfo
+   * \param ids available HARQ process IDs
    */
-  virtual void DoSchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params) = 0;
+  virtual void DoSchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids) = 0;
   /**
    * \brief Tell the scheduler that a new slot has started
    * \param sfn Ths current SfnSf
@@ -166,7 +168,7 @@ public:
   NrSlUeMacGeneralSchedSapProvider (NrSlUeMacScheduler* sched);
 
   virtual void SchedUeNrSlRlcBufferReq (const struct NrSlUeMacSchedSapProvider::SchedUeNrSlReportBufferStatusParams& params) override;
-  virtual void SchedUeNrSlTriggerReq (uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params) override;
+  virtual void SchedUeNrSlTriggerReq (const SfnSf& sfn, uint32_t dstL2Id, const std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo>& params, const std::deque<uint8_t>& ids) override;
   virtual void SlotIndication (SfnSf sfn, bool isSidelinkSlot) override;
 
 private:
