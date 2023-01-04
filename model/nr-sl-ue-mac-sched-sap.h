@@ -191,6 +191,8 @@ public:
     uint8_t nrSlHarqId {std::numeric_limits <uint8_t>::max ()}; //!< The NR SL HARQ process id assigned at the time of transmitting new data
     uint8_t nSelected {0}; //!< The number of slots selected by the scheduler for first reservation period
     uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
+    bool isDynamic {false}; //!< true if the grant is for dynamic scheduling (single-PDU), false if it is for semi-persistent scheduling
+    Time rri {0}; //!< The resource reservation interval for the semi-persistent scheduled grant
   };
 
   struct NrSlGrant
@@ -200,6 +202,7 @@ public:
     uint8_t nSelected {0}; //!< The number of slots selected by the scheduler for first reservation period
     uint8_t tbTxCounter {0}; //!< The counter to count the number of time a TB is tx/reTx in a reservation period
     uint32_t tbSize {0}; //!< Size of Transport Block in bytes
+    Time rri {0}; //!< The resource reservation interval for the semi-persistent scheduled grant
   };
 
   /**

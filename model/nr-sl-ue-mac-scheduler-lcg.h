@@ -89,6 +89,12 @@ public:
   bool     m_isGbr {false};                                    //!< true if the bearer is GBR, false if the bearer is NON-GBR
   uint64_t m_mbr {0};                                          //!< maximum bitrate
   uint64_t m_gbr {0};                                          //!< guaranteed bitrate
+  bool     m_harqEnabled {false};                              //!< true if HARQ is enabled
+  Time     m_pdb {0};                                          //!< Packet Delay Budget
+  bool     m_dynamic {false};                                  //!< true if LC scheduling is dynamic, false if it is SPS
+  Time     m_rri {0};                                          //!< Resource Reservation Interval
+  SidelinkInfo::CastType m_castType {SidelinkInfo::CastType::Invalid}; //!< Cast type
+
 };
 
 /**
@@ -234,6 +240,23 @@ public:
    * \return The GBR value of the LC
    */
   uint64_t GetLcGbr (uint8_t lcId);
+
+  /**
+   * \brief Check if the LC scheduling is dynamic
+   *
+   * \param lcId The LC id
+   * \return true if the LC scheduling is dynamic, false if it is SPS
+   */
+  bool IsLcDynamic (uint16_t lcId);
+
+  /**
+   * \brief Get the LC RRI value
+   *
+   * \param lcId The LC id
+   * \return The RRI value of the LC
+   */
+  Time GetLcRri (uint8_t lcId);
+
 
   /**
    * \brief Inform the LCG of the assigned data to a LC id

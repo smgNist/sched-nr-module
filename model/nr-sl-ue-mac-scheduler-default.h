@@ -92,7 +92,8 @@ public:
   /**
    * \brief Attempt to select new grant from the selection window
    *
-   * If successful, CreateGrantInfo() will be called for SPS grants
+   * If successful, CreateSpsGrant () will be called for SPS grants
+   * or CreateSinglePduGrant () for dynamic grants
    *
    * \param dstL2Id The destination layer 2 id
    * \param params The list of NrSlUeMacSchedSapProvider::NrSlSlotInfo
@@ -102,14 +103,24 @@ public:
   /**
    * \brief Create future SPS grants based on slot allocation
    *
-   * \param slotAllocList The slot allocation list passed by a specific
-   *        scheduler to NrUeMac
+   * \param slotAllocList The slot allocation list
+   * \param rri The resource reservation interval
    * \return The grant info for a destination based on the scheduler allocation
    *
    * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
    * \see NrSlUeMacSchedSapUser::NrSlGrantInfo
    */
-  NrSlUeMacSchedSapUser::NrSlGrantInfo CreateGrantInfo (const std::set<NrSlSlotAlloc>& params);
+  NrSlUeMacSchedSapUser::NrSlGrantInfo CreateSpsGrantInfo (const std::set<NrSlSlotAlloc>& params, Time rri);
+  /**
+   * \brief Create a single-PDU grant based on slot allocation
+   *
+   * \param slotAllocList The slot allocation list
+   * \return The grant info for a destination based on the scheduler allocation
+   *
+   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
+   * \see NrSlUeMacSchedSapUser::NrSlGrantInfo
+   */
+  NrSlUeMacSchedSapUser::NrSlGrantInfo CreateSinglePduGrantInfo (const std::set<NrSlSlotAlloc>& params);
   /**
    * \brief Filter the Transmit opportunities.
    *
@@ -122,13 +133,22 @@ public:
    */
   std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> FilterTxOpportunities (std::list <NrSlUeMacSchedSapProvider::NrSlSlotInfo> txOppr);
   /**
-   * \brief Method to create future grant repetitions
+   * \brief Method to create future SPS grant repetitions
+   * \param slotAllocList The slot allocation list from the selection window
+   * \param ids The available HARQ process IDs
+   * \param rri The resource reservation interval
+   *
+   * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
+   */
+  void CreateSpsGrant (const std::set<NrSlSlotAlloc>& slotAllocList, const std::deque<uint8_t>& ids, Time rri);
+  /**
+   * \brief Method to create a single-PDU grant
    * \param slotAllocList The slot allocation list from the selection window
    * \param ids The available HARQ process IDs
    *
    * \see NrSlUeMacSchedSapUser::NrSlSlotAlloc
    */
-  void CreateFutureGrants (const std::set<NrSlSlotAlloc>& slotAllocList, const std::deque<uint8_t>& ids);
+  void CreateSinglePduGrant (const std::set<NrSlSlotAlloc>& slotAllocList, const std::deque<uint8_t>& ids);
 
   /**
    * \brief Check whether any grants are at the processing delay deadline

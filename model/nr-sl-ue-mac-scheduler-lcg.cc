@@ -33,6 +33,11 @@ NrSlUeMacSchedulerLC::NrSlUeMacSchedulerLC (const struct NrSlUeMacCschedSapProvi
   m_isGbr = conf.isGbr;
   m_mbr = conf.mbr;
   m_gbr = conf.gbr;
+  m_harqEnabled = conf.harqEnabled;
+  m_pdb = conf.pdb;
+  m_dynamic = conf.dynamic;
+  m_rri = conf.rri;
+  m_castType = conf.castType;
 }
 
 int
@@ -159,6 +164,20 @@ NrSlUeMacSchedulerLCG::GetLcGbr (uint8_t lcId)
 {
   NS_ASSERT (Contains (lcId));
   return m_lcMap.at (lcId)->m_gbr;
+}
+
+bool
+NrSlUeMacSchedulerLCG::IsLcDynamic (uint16_t lcId)
+{
+  NS_ASSERT (Contains (lcId));
+  return m_lcMap.at (lcId)->m_dynamic;
+}
+
+Time
+NrSlUeMacSchedulerLCG::GetLcRri (uint8_t lcId)
+{
+  NS_ASSERT (Contains (lcId));
+  return m_lcMap.at (lcId)->m_rri;
 }
 
 void

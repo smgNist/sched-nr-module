@@ -1522,6 +1522,13 @@ NrUeMac::DoReceiveSensingData (SensingData sensingData)
 
   if (m_enableSensing)
     {
+      if (sensingData.rsvp == 0)
+        {
+          //Ignore sensing data without a valid resource reservation period
+          //(e.g., SCI 1-A corresponds to a single-PDU transmission)
+          NS_LOG_INFO ("Ignoring sensing data without a valid resource reservation period");
+          return;
+        }
       //oldest data will be at the front of the queue
       m_sensingData.push_back (sensingData);
     }
@@ -1672,6 +1679,9 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
                   NS_ASSERT_MSG (pb->GetNPackets () > 0, "Packet burst for HARQ id " << +currentGrant.nrSlHarqId << " is empty");
                   for (const auto & itPkt : pb->GetPackets ())
                     {
+                      NS_LOG_DEBUG ("Sending PSSCH MAC PDU (Rtx) dstL2Id: " << currentSlot.dstL2Id
+                                    << " lcId: " << +currentSlot.lcId << " harqId: " << +currentGrant.nrSlHarqId
+                                    << " Packet Size: " << itPkt->GetSize ());
                       m_nrSlUePhySapProvider->SendPsschMacPdu (itPkt);
                     }
                 }
@@ -1695,6 +1705,9 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
                       NS_ASSERT_MSG (pb->GetNPackets () > 0, "Packet burst for HARQ id " << +currentGrant.nrSlHarqId << " is empty");
                       for (const auto & itPkt : pb->GetPackets ())
                         {
+                          NS_LOG_DEBUG ("Sending PSSCH MAC PDU (Rtx) dstL2Id: " << currentSlot.dstL2Id
+                                        << " lcId: " << +currentSlot.lcId << " harqId: " << +currentGrant.nrSlHarqId
+                                        << " Packet Size: " << itPkt->GetSize ());
                           m_nrSlUePhySapProvider->SendPsschMacPdu (itPkt);
                         }
                     }
@@ -1788,7 +1801,7 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
               sciF1a.SetPriority (currentSlot.priority);
               sciF1a.SetMcs (currentSlot.mcs);
               sciF1a.SetSciStage2Format (NrSlSciF1aHeader::SciFormat2A);
-              sciF1a.SetSlResourceReservePeriod (static_cast <uint16_t> (m_pRsvpTx.GetMilliSeconds ()));
+              sciF1a.SetSlResourceReservePeriod (static_cast <uint16_t> (currentGrant.rri.GetMilliSeconds ()));
               sciF1a.SetTotalSubChannels (GetTotalSubCh (m_poolId));
               sciF1a.SetIndexStartSubChannel (currentSlot.slPsschSubChStart);
               sciF1a.SetLengthSubChannel (currentSlot.slPsschSubChLength);
@@ -1817,6 +1830,8 @@ NrUeMac::DoNrSlSlotIndication (const SfnSf& sfn)
               NrSlMacPduTag tag (m_rnti, currentSlot.sfn, currentSlot.slPsschSymStart, currentSlot.slPsschSymLength, currentGrant.tbSize, currentSlot.dstL2Id);
               pktSciF1a->AddPacketTag (tag);
 
+              NS_LOG_DEBUG ("Sending PSCCH MAC PDU dstL2Id: " << currentSlot.dstL2Id << " lcId: " << +currentSlot.lcId
+                            << " harqId: " << +currentGrant.nrSlHarqId);
               m_nrSlUePhySapProvider->SendPscchMacPdu (pktSciF1a);
 
               //set the VarTti allocation info for PSCCH
